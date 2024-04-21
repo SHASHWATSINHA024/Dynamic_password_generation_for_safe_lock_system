@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Generator</title>
+</head>
+<body>
+    <div id="sequence"></div>
+    <script>
+        function fetchSequence() {
+            fetch('/get_sequence')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Access Denied');
+                    }
+                    return response.text();
+                })
+                .then(sequence => {
+                    document.getElementById('sequence').innerText = 'OTP: ' + sequence;
+                })
+                .catch(error => {
+                    document.getElementById('sequence').innerText = error.message;
+                });
+        }
+
+        // Fetch the sequence initially
+        fetchSequence();
+
+        // Update the sequence every 30 seconds
+        setInterval(fetchSequence, 30000);
+    </script>
+</body>
+</html>
