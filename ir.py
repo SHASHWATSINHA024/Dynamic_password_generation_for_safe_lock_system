@@ -1,37 +1,42 @@
-import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO  # Library to control Raspberry Pi's GPIO pins
 import time
-import subprocess
-import signal
+import subprocess  # Used to run external programs
+import signal  # Used for sending signals like SIGTERM to processes
 
-# Define the GPIO pins connected to the IR sensor
+# Define the GPIO pin connected to the IR sensor
 IR_PIN = 23
 
-# Setup GPIO mode and pin
+# Set up GPIO mode (BCM numbering) and configure the IR sensor pin as input
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(IR_PIN, GPIO.IN)
 
 try:
     while True:
-        # Read the state of the IR sensor
+        # Read the IR sensor state: LOW means object detected (based on most IR sensor logic)
         ir_state = GPIO.input(IR_PIN)
         
-        # Check if an object is detected by the IR sensor
         if ir_state == GPIO.LOW:
             print("Object detected!")
-            # Open the file app.py using subprocess
+            
+            # Launch app.py as a separate process
             process = subprocess.Popen(["python", "app.py"])
-            # Wait for 30 seconds
+            
+            # Keep the process running for 30 seconds
             time.sleep(30)
-            # Terminate the subprocess after 30 seconds
-            process.terminate()
+            
+            # Terminate the app.py process after 30 seconds
+            process.terminate()  # Sends SIGTERM; for SIGKILL use process.kill()
             print("App terminated.")
         else:
             print("No object detected")
         
-        time.sleep(0.1)  # Adjust sleep time as needed
+        # Delay between sensor checks to prevent CPU overuse
+        time.sleep(0.1)
 
 except KeyboardInterrupt:
+    # Graceful exit on Ctrl+C
     print("Exiting...")
 
 finally:
-    GPIO.cleanup()  # Clean up GPIO settings before exiting
+    # Clean up GPIO settings to reset pins and avoid conflicts
+    GPIO.cleanup()
