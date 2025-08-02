@@ -1,122 +1,103 @@
 import RPi.GPIO as GPIO
 import time
 
-L1 = 5
-L2 = 6
-L3 = 13
-L4 = 19
-
+# GPIO pin mapping for rows (R1 to R4) and columns (C1 to C4) of a 4x4 matrix keypad
+R1 = 5
+R2 = 6
+R3 = 13
+R4 = 19
 C1 = 12
 C2 = 16
 C3 = 20
 C4 = 21
-servo_pin = 2
 
-# GPIO Setup
+# Setup GPIO mode
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(servo_pin, GPIO.OUT)
 
-# Create PWM instance with frequency of 50 Hz
-pwm = GPIO.PWM(servo_pin, 50)
-OTP_FILE = "otp.txt"
+# Define GPIO pin for servo control
+servoPIN = 18
+GPIO.setup(servoPIN, GPIO.OUT)
 
-GPIO.setup(L1, GPIO.OUT)
-GPIO.setup(L2, GPIO.OUT)
-GPIO.setup(L3, GPIO.OUT)
-GPIO.setup(L4, GPIO.OUT)
+# Setup PWM for servo motor with 50Hz frequency
+pwm = GPIO.PWM(servoPIN, 50)
 
+# Configure row pins as input with pull-down resistors
+GPIO.setup(R1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(R2, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(R3, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(R4, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+# Configure column pins as input with pull-down resistors
 GPIO.setup(C1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(C2, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(C3, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(C4, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
-def rotate_servo():
-    
-        # Start PWM with duty cycle corresponding to 90 degrees
-        pwm.start(7.5)  # 7.5% duty cycle corresponds to 90 degrees
-
-        # Rotate to 90 degrees for 30 seconds
-        print("Rotating servo to 90 degrees")
-        time.sleep(30)
-
-        # Return to original state (0 degrees)
-        print("Returning servo to original state")
-        pwm.ChangeDutyCycle(2.5)  # 2.5% duty cycle corresponds to 0 degrees
-        time.sleep(1)  # Give time for the servo to reach the position
-
-
-
-def readLine(mode, line, characters, prev_input):
-    GPIO.setmode(mode)
+# Helper function to scan a single row for input
+def readLine(line, characters, prev_input):
     GPIO.setup(line, GPIO.OUT)
-    GPIO.output(line, GPIO.HIGH)
-    time.sleep(0.05)  # Adjust this sleep time as needed
-    inputs = [GPIO.input(C1), GPIO.input(C2), GPIO.input(C3), GPIO.input(C4)]
-    for i in range(4):
-        if inputs[i] == 1 and prev_input[i] == 0:
-            return characters[i]
-    GPIO.output(line, GPIO.LOW)
-    GPIO.setup(line, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)  # Set the line back to input
-    return None
+    GPIO.output(line, GPIO.HIGH)  # Enable the current row
     
-def read_otp_from_file(filename):
-    try:
-        with open(filename, 'r') as file:
-            otp = file.read().strip()
-            return otp
-    except FileNotFoundError:
-        print("OTP file not found.")
-        return None
+    # Check each column for button press
+    if GPIO.input(C1) == 1 and prev_input[0] == 0:
+        prev_input[0] = 1
+        return characters[0]
+    elif GPIO.input(C2) == 1 and prev_input[1] == 0:
+        prev_input[1] = 1
+        return characters[1]
+    elif GPIO.input(C3) == 1 and prev_input[2] == 0:
+        prev_input[2] = 1
+        return characters[2]
+    elif GPIO.input(C4) == 1 and prev_input[3] == 0:
+        prev_input[3] = 1
+        return characters[3]
+    
+    # Reset row to input mode
+    GPIO.output(line, GPIO.LOW)
+    GPIO.setup(line, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    return None
 
-try:
-    while True:
+# Function to rotate servo motor to 90 degrees and back after 30 seconds
+def rotate_servo():
+    pwm.start(2.5)  # Start PWM with initial duty cycle
+    pwm.ChangeDutyCycle(7.5)  # Move servo to 90 degrees
+    print("Rotating servo to 90 degrees")
+    time.sleep(30)
+    pwm.ChangeDutyCycle(2.5)  # Move servo back to 0 degrees
+    print("Returning to 0 degrees")
+    time.sleep(1)
+
+# Read stored OTP from text file
+with open("otp.txt", "r") as file:
+    otp = file.read().strip()
+
+# Loop to capture 7-digit OTP input from keypad
+entered_otp = ""
+prev_input = [0, 0, 0, 0]  # Track previous input state for each column
+print("Enter 7-digit OTP:")
+
+while len(entered_otp) < 7:
+    for line, chars in zip([R1, R2, R3, R4], [['1', '2', '3', 'A'],
+                                              ['4', '5', '6', 'B'],
+                                              ['7', '8', '9', 'C'],
+                                              ['*', '0', '#', 'D']]):
+        char = readLine(line, chars, prev_input)
+        if char:
+            entered_otp += char
+            print("Input:", entered_otp)
+    
+    # Reset column states if no input
+    if all(GPIO.input(pin) == 0 for pin in [C1, C2, C3, C4]):
         prev_input = [0, 0, 0, 0]
-        entered_otp = ""
-        print("Enter OTP:")
-        while len(entered_otp) < 7:
-            input_char = readLine(GPIO.BCM, L1, ["1","2","3","A"], prev_input)
-            if input_char is not None:
-                entered_otp += input_char
-                print("Input:", entered_otp)
-                prev_input = [0, 0, 0, 0]
-                time.sleep(0.2)  # Additional delay between inputs
-                continue
-            
-            input_char = readLine(GPIO.BCM, L2, ["4","5","6","B"], prev_input)
-            if input_char is not None:
-                entered_otp += input_char
-                print("Input:", entered_otp)
-                prev_input = [0, 0, 0, 0]
-                time.sleep(0.2)  # Additional delay between inputs
-                continue
-            
-            input_char = readLine(GPIO.BCM, L3, ["7","8","9","C"], prev_input)
-            if input_char is not None:
-                entered_otp += input_char
-                print("Input:", entered_otp)
-                prev_input = [0, 0, 0, 0]
-                time.sleep(0.2)  # Additional delay between inputs
-                continue
-            
-            input_char = readLine(GPIO.BCM, L4, ["*","0","#","D"], prev_input)
-            if input_char is not None:
-                entered_otp += input_char
-                print("Input:", entered_otp)
-                prev_input = [0, 0, 0, 0]
-                time.sleep(0.2)  # Additional delay between inputs
-        
-        print("Entered OTP:", entered_otp)
-        
-        otp_from_file = read_otp_from_file(OTP_FILE)
-        if otp_from_file is not None:
-            if entered_otp == otp_from_file:
-                print("OTP is correct.")
-                rotate_servo()
-            else:
-                print("Entered OTP does not match.")
-        else:
-            print("OTP file not found or invalid.")
-        
-except KeyboardInterrupt:
-    print("\nApplication stopped!")
+
+# Compare entered OTP with stored OTP
+if entered_otp == otp:
+    print("OTP matched! Rotating servo.")
+    rotate_servo()
+else:
+    print("Incorrect OTP!")
+
+# Clean up GPIO after execution
+pwm.stop()
+GPIO.cleanup()
