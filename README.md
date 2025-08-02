@@ -71,3 +71,5 @@ Concepts of network security and IP whitelisting
 Combining hardware automation with software logic
 
 We are excited to take this experience forward and build more innovative Raspberry Pi projects.
+
+![demo_picture](demo_picture.jpg)
